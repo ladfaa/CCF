@@ -4,17 +4,15 @@
 #include<fstream>
 #include<string>
 #include<hash_map>
-#include <sstream>
 #include<random>
 #include<math.h>
 using namespace std;
 
 class Node{
-	int name;
-	string news, time, vistime;
+	string name, news, time, vistime;
 public:
 	Node(){}
-	Node(int name, string news, string time, string vistime){
+	Node(string name, string news, string time, string vistime){
 		this->name = name;
 		this->news = news;
 		this->time = time;
@@ -23,20 +21,20 @@ public:
 	string getNews(){
 		return news;
 	}
-	int getName(){
-		return name;
-	}
 };
 class CCF{
 public:
-	vector<string> mylog[52187];
-	hash_map<int, vector<int>> net;
+	hash_map<string, vector<Node>*> mylog;
+	hash_map<string, vector<string>> net;
+	hash_map<string, double> simMatrix;
 	int cnt = 0;
 	CCF(){
-		cout << "ok" << endl;
+
 	}
 	~CCF(){
-
+		hash_map<string, vector<Node>*>::iterator it;
+		for (it = mylog.begin(); it != mylog.end(); it++)
+			delete &(*it);
 	}
 
 	void split(const string& src, const string& separator, vector<string>& dest)
@@ -63,8 +61,8 @@ public:
 	}
 	void init(){
 		string ff;
-		hash_map<int, int> user;
-		ifstream fin("out");
+		hash_map<int, string> user;
+		ifstream fin("in");
 		int k = 0;
 
 		while (true){
@@ -72,53 +70,52 @@ public:
 			fin >> ff;
 			vector<string> tmp;
 			split(ff, ",", tmp);
-			stringstream ss;
-			ss << tmp[0];
-			int tmp0;
-			ss >> tmp0;
-			if (mylog[tmp0].size() == 0){
-				vector<string> newVector;
-				mylog[tmp0] = newVector;
-				user[k++] = tmp0;
+			hash_map<string, vector<Node>*>::iterator it = mylog.find(tmp[0]);
+			if (it == mylog.end()){
+				vector<Node>* newVector = new vector<Node>();
+				mylog[tmp[0]] = newVector;
+				user[k++] = tmp[0];
 			}
 
-			mylog[tmp0].push_back(tmp[1]);
+			mylog[tmp[0]]->push_back(Node(tmp[0], tmp[1], tmp[2], tmp[3]));
 		}
 		fin.close();
-		for (int i = 0; i < 5218792; i++){
-			if (mylog[i].empty())continue;
-			vector<int> v;
-			net[i] = v;
+		hash_map<string, vector<Node>*>::iterator it;
+		for (it = mylog.begin(); it != mylog.end(); it++){
+			vector<string> v;
+			net[it->first] = v;
 			for (int i = 0; i < 5; i++){
 				int ran = rand() % 9999;
-				net[i].push_back(user[ran]);
+				net[it->first].push_back(user[ran]);
 			}
 		}
 	}
-	int getNum(int follow, int leader){
+	int getNum(string follow, string leader){
 		int count = 0;
-		int size1 = mylog[follow].size();
-		int size2 = mylog[leader].size();
+		int size1 = mylog[follow]->size();
+		int size2 = mylog[leader]->size();
 
 		for (int i = 0; i < size1; i++){
 			for (int j = 0; j < size2; j++){
 				cnt++;
-				string first = mylog[follow][i];
-				string second = mylog[leader][j];
+				hash_map<string, vector<Node>*>::iterator it = mylog.find(follow);
+				string first = (*(it->second->begin() + i)).getNews();
+				it = mylog.find(leader);
+				string second = (*(it->second->begin() + j)).getNews();
 				if (first == second)
 					count++;
 			}
 		}
 		return count;
 	}
-	int getNum2(int follow, int leader){
+	int getNum2(string follow, string leader){
 		hash_map<string, string> vis1;
 		vector<string> vis2;
-		for (int i = 0; i < mylog[follow].size(); i++){
-			vis1[mylog[follow][i]] = mylog[follow][i];
+		for (int i = 0; i < mylog[follow]->size(); i++){
+			vis1[(*(mylog[follow]->begin() + i)).getNews()] = (*(mylog[follow]->begin() + i)).getNews();
 		}
-		for (int i = 0; i < mylog[leader].size(); i++){
-			vis2.push_back(mylog[leader][i]);
+		for (int i = 0; i < mylog[leader]->size(); i++){
+			vis2.push_back((*(mylog[leader]->begin() + i)).getNews());
 		}
 		int count = 0;
 		for (int i = 0; i < vis2.size(); i++){
@@ -128,20 +125,24 @@ public:
 		}
 		return count;
 	}
-	double sim(int follow, int leader){
+	double sim(string follow, string leader){
+		if (simMatrix.find(follow + leader) != simMatrix.end()){
+			return simMatrix[follow + leader];
+		}
 		double t1 = getNum(follow, leader) - getNum2(follow, leader);
-		double t2 = mylog[leader].size();
-		double t3 = 1 - 1 / sqrt(mylog[leader].size());
-		double res = t1 / t2 * t3;
+		double t2 = mylog[leader]->size();
+		double t3 = 1 - 1 / sqrt(mylog[leader]->size());
+		double res = t1 / t2*t3;
+		simMatrix[follow + leader] = res;
 		return res;
 	}
-	bool in(int first, vector<int> second){
+	bool in(string first, vector<string> second){
 		for (int i = 0; i < second.size(); i++)
 		if (first == second[i])
 			return true;
 		return false;
 	}
-	void replace(int user){
+	void replace(string user){
 
 		double min = 1000;
 		int minI = -1;
@@ -153,16 +154,16 @@ public:
 			}
 		}
 		double max = -10000;
-		int kk;
-		for (int i = 0; i < 5218792; i++){
-			if (mylog[i].empty())continue;
-			if (in(i, net[user])){
+		string kk;
+		hash_map<string, vector<Node>*>::iterator it;
+		for (it = mylog.begin(); it != mylog.end(); it++){
+			if (in(it->first, net[user])){
 				continue;
 			}
-			double tmp = sim(user, i);
+			double tmp = sim(user, it->first);
 			if (max < tmp){
 				max = tmp;
-				kk = i;
+				kk = it->first;
 			}
 		}
 		if (min < max){
@@ -173,24 +174,21 @@ public:
 
 	}
 };
-
 int main(){
-	cout << sizeof(int);
 	CCF c;
 	c.init();
-	cout << c.sim(5218791, 52550) << endl;
+	cout << c.sim("5218791", "52550") << endl;
 	int k = 0;
-	for (int i = 0; i < 5218792; i++){
-		if (c.mylog[i].empty())continue;
+	for (hash_map<string, vector<Node>*>::iterator it = c.mylog.begin(); it != c.mylog.end(); it++){
 		cout << k++ << endl;
 		cout << c.cnt << endl;
-		for (int j = 0; j < 5; j++){
-			c.replace(i);
+		for (int i = 0; i < 5; i++){
+			c.replace(it->first);
 		}
 	}
 
 
 	for (int i = 0; i < 5; i++){
-		cout << c.sim(5218791, c.net[5218791][i]);
+		cout << c.sim("5218791", c.net["5218791"][i]);
 	}
 }
